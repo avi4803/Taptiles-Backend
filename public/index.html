@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TapTile - Phase 3 Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            background: #667eea;
+            color: white;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        #messages {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-top: 20px;
+            min-height: 100px;
+            max-height: 400px;
+            overflow-y: auto;
+            background: #f9f9f9;
+            border-radius: 5px;
+        }
+        .info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border-left: 4px solid #2196F3;
+        }
+        #loginForm {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        #loginForm input {
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            width: 200px;
+        }
+        #gameArea {
+            display: none;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .status-connected {
+            background: #4caf50;
+            color: white;
+        }
+        .status-disconnected {
+            background: #f44336;
+            color: white;
+        }
+        .game-buttons {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f0f0f0;
+            border-radius: 5px;
+        }
+        .game-info {
+            background: #fff3cd;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border-left: 4px solid #ffc107;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 TapTile - Phase 3 Test</h1>
+        
+        <!-- Login Form -->
+        <div id="loginForm">
+            <h2>Enter Username</h2>
+            <input type="text" id="usernameInput" placeholder="Your username" maxlength="20">
+            <button onclick="connect()">Connect</button>
+            <p id="loginError" style="color: red;"></p>
+        </div>
+        
+        <!-- Game Area (shown after login) -->
+        <div id="gameArea">
+            <div class="info">
+                <strong>Connection Status:</strong> 
+                <span id="status" class="status-badge status-disconnected">Disconnected</span>
+            </div>
+            
+            <div class="info">
+                <strong>Username:</strong> <span id="displayUsername">-</span><br>
+                <strong>Color:</strong> <span id="displayColor" style="padding: 5px 10px; border-radius: 3px;">-</span><br>
+                <strong>Active Users:</strong> <span id="userCount">0</span>
+            </div>
+            
+            <div class="game-info" id="gameInfo" style="display: none;">
+                <strong>Current Game:</strong> <span id="currentGameId">-</span><br>
+                <strong>Status:</strong> <span id="gameStatus">-</span>
+            </div>
+            
+            <div class="game-buttons">
+                <h3>🎮 Game Controls</h3>
+                <button onclick="createGame()">Create Game</button>
+                <button onclick="joinGame()">Join Game</button>
+                <button onclick="startGame()">Start Game</button>
+                <button onclick="getLeaderboard()">Get Leaderboard</button>
+            </div>
+            
+            <div class="game-buttons">
+                <h3>🧪 Test Controls</h3>
+                <button onclick="sendPing()">Send Ping</button>
+                <button onclick="sendMessage()">Send Message</button>
+                <button onclick="testRedis()">Test Redis</button>
+            </div>
+            
+            <h3>📨 Messages</h3>
+            <div id="messages"></div>
+        </div>
+    </div>
+    
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        let socket;
+        let currentGameId = null;
+        const messagesDiv = document.getElementById('messages');
+        
+        function addMessage(msg) {
+            const p = document.createElement('p');
+            p.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            messagesDiv.appendChild(p);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        function connect() {
+            const username = document.getElementById('usernameInput').value.trim();
+            
+            if (!username) {
+                document.getElementById('loginError').textContent = 'Please enter a username';
+                return;
+            }
+            
+            socket = io({
+                auth: {
+                    username: username
+                }
+            });
+            
+            socket.on('connect', () => {
+                document.getElementById('loginForm').style.display = 'none';
+                document.getElementById('gameArea').style.display = 'block';
+                document.getElementById('status').textContent = 'Connected';
+                document.getElementById('status').className = 'status-badge status-connected';
+                addMessage('✅ Connected to server');
+            });
+            
+            socket.on('connect_error', (error) => {
+                document.getElementById('loginError').textContent = error.message;
+                addMessage('❌ Connection error: ' + error.message);
+            });
+            
+            socket.on('disconnect', () => {
+                document.getElementById('status').textContent = 'Disconnected';
+                document.getElementById('status').className = 'status-badge status-disconnected';
+                addMessage('❌ Disconnected from server');
+            });
+            
+            socket.on('userJoined', (data) => {
+                document.getElementById('displayUsername').textContent = data.username;
+                document.getElementById('displayColor').textContent = data.color;
+                document.getElementById('displayColor').style.backgroundColor = data.color;
+                if (data.message) {
+                    addMessage('👋 ' + data.message);
+                } else {
+                    addMessage('👋 ' + data.username + ' joined');
+                }
+            });
+            
+            socket.on('userLeft', (data) => {
+                addMessage('👋 ' + data.username + ' left');
+            });
+            
+            socket.on('userCount', (count) => {
+                document.getElementById('userCount').textContent = count;
+            });
+            
+            // Game events
+            socket.on('gameCreated', (data) => {
+                currentGameId = data.game.gameId;
+                document.getElementById('gameInfo').style.display = 'block';
+                document.getElementById('currentGameId').textContent = currentGameId;
+                document.getElementById('gameStatus').textContent = data.game.status;
+                addMessage(`🎮 Game created: ${currentGameId}`);
+            });
+            
+            socket.on('gameJoined', (data) => {
+                currentGameId = data.gameId;
+                document.getElementById('gameInfo').style.display = 'block';
+                document.getElementById('currentGameId').textContent = currentGameId;
+                document.getElementById('gameStatus').textContent = data.gameInfo.status;
+                addMessage(`🎮 Joined game: ${currentGameId}`);
+                addMessage(`   Status: ${data.gameInfo.status}`);
+            });
+            
+            socket.on('gameStarted', (data) => {
+                document.getElementById('gameStatus').textContent = 'active';
+                const duration = Math.floor(data.duration / 1000);
+                addMessage(`🎮 Game started! Duration: ${duration}s`);
+            });
+            
+            socket.on('gameEnded', (data) => {
+                document.getElementById('gameStatus').textContent = 'ended';
+                addMessage(`🏁 Game ended!`);
+                if (data.leaderboard && data.leaderboard.length > 0) {
+                    addMessage(`   Winner: ${data.leaderboard[0].username} (${data.leaderboard[0].score} points)`);
+                }
+            });
+            
+            socket.on('leaderboardUpdate', (data) => {
+                addMessage(`🏆 Leaderboard:`);
+                if (data.leaderboard.length === 0) {
+                    addMessage('   (No scores yet)');
+                } else {
+                    data.leaderboard.forEach(entry => {
+                        addMessage(`   ${entry.rank}. ${entry.username}: ${entry.score} points`);
+                    });
+                }
+            });
+            
+            socket.on('batchUpdate', (updates) => {
+                addMessage(`📦 Batch update: ${updates.length} tiles changed`);
+            });
+            
+            // Test events
+            socket.on('pong', (data) => {
+                addMessage('🏓 Pong: ' + data.message);
+            });
+            
+            socket.on('messageResponse', (data) => {
+                addMessage('💬 Server: ' + data.message);
+            });
+            
+            socket.on('redisResponse', (data) => {
+                addMessage('🔴 Redis: ' + data.message);
+            });
+            
+            socket.on('error', (data) => {
+                addMessage('❌ Error: ' + data.message);
+            });
+        }
+        
+        // Game functions
+        function createGame() {
+            socket.emit('createGame');
+            addMessage('Creating game...');
+        }
+        
+        function joinGame() {
+            if (!currentGameId) {
+                const gameId = prompt('Enter game ID:');
+                if (gameId) currentGameId = gameId;
+            }
+            if (currentGameId) {
+                socket.emit('joinGame', { gameId: currentGameId });
+                addMessage('Joining game...');
+            }
+        }
+        
+        function startGame() {
+            if (currentGameId) {
+                socket.emit('startGame', { gameId: currentGameId });
+                addMessage('Starting game...');
+            } else {
+                addMessage('❌ No game to start. Create or join a game first.');
+            }
+        }
+        
+        function getLeaderboard() {
+            if (currentGameId) {
+                socket.emit('getLeaderboard', { gameId: currentGameId });
+                addMessage('Getting leaderboard...');
+            } else {
+                addMessage('❌ No active game');
+            }
+        }
+        
+        // Test functions
+        function sendPing() {
+            socket.emit('ping', { timestamp: Date.now() });
+            addMessage('🏓 Ping sent');
+        }
+        
+        function sendMessage() {
+            const msg = prompt('Enter a message:');
+            if (msg) {
+                socket.emit('message', { text: msg });
+                addMessage('📤 You: ' + msg);
+            }
+        }
+        
+        function testRedis() {
+            socket.emit('testRedis');
+            addMessage('🔴 Testing Redis...');
+        }
+    </script>
+</body>
+</html>
