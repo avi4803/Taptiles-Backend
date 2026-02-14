@@ -94,21 +94,6 @@ Backend/
 └── package.json
 ```
 
-## 🧪 Testing
-
-```bash
-# Run all tests
-npm test
-
-# Run unit tests only
-npm run test:unit
-
-# Run integration tests only
-npm run test:integration
-
-# Watch mode
-npm run test:watch
-```
 
 ## 🎮 How to Play
 
@@ -125,9 +110,7 @@ Key environment variables in `.env`:
 - `PORT` - Server port (default: 3000)
 - `REDIS_HOST` - Redis host
 - `MONGODB_URI` - MongoDB connection string
-- `GAME_DURATION` - Game duration in milliseconds
-- `GRID_WIDTH` - Grid width (tiles)
-- `GRID_HEIGHT` - Grid height (tiles)
+
 
 ## 📊 API Events (Socket.IO)
 
@@ -154,22 +137,11 @@ docker-compose up -d
 2. Configure production Redis and MongoDB URLs
 3. Run `npm start`
 
-## 🤝 Contributing
 
-Contributions are welcome! Please follow these steps:
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Open a Pull Request
-
-## 📝 License
-
-MIT License - see LICENSE file for details
 
 ## 👥 Authors
 
-- Your Name
+- Avinash Nishad
 
 ## 🙏 Acknowledgments
 
