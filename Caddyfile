@@ -1,0 +1,12 @@
+# Put your EC2 Public IP here, or better, your custom domain if you have one.
+# For direct IP usage (which cannot have Let's Encrypt), Caddy uses self-signed by default.
+# HOWEVER, for Vercel Mixed Content, you typically need a REAL domain for valid SSL.
+# For quick testing with IP, we can use HTTP but Vercel forces HTTPS.
+
+# OPTION 1: Using nio.io (wildcard DNS for IP addresses) to get valid SSL
+# e.g. 54.123.45.67.nip.io
+# Replace 3.6.224.83 with your actual IP
+
+3.6.224.83.nip.io {
+    reverse_proxy api:3000
+}

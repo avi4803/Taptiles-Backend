@@ -3,8 +3,6 @@ version: '3.8'
 services:
   api:
     build: .
-    ports:
-      - "80:3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
@@ -17,11 +15,24 @@ services:
 
   redis:
     image: redis:alpine
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     restart: always
 
+  caddy:
+    image: caddy:latest
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+    restart: always
+
 volumes:
   redis_data:
+  caddy_data:
+  caddy_config:
