@@ -13,7 +13,7 @@ function handleCreateGame(io, socket) {
     
   return async (data) => {
     try {
-      const { gridSize, maxPlayers } = data || {};
+      const { gridSize, maxPlayers, duration } = data || {};
       
       // Create custom grid config
       const customGrid = gridSize ? {
@@ -24,7 +24,7 @@ function handleCreateGame(io, socket) {
         }
       } : undefined;
       
-      const game = await gameService.createGame(undefined, customGrid, maxPlayers, socket.userId);
+      const game = await gameService.createGame(duration, customGrid, maxPlayers, socket.userId);
       
       // Add creator as player
       const creator = {
