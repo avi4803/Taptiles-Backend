@@ -7,6 +7,7 @@ const tileService = require('../../services/tile.service');
 const gameService = require('../../services/game.service');
 const { validateTileId } = require('../../utils/validators');
 const { GRID, EVENTS } = require('../../config/constants');
+const batchService = require('../../services/batch.service');
 
 /**
  * Handle tile claim event
@@ -37,6 +38,15 @@ function handleClaimTile(io, socket) {
         socket.emit(EVENTS.TILE_CLAIMED, {
           success: true,
           tile: result.tile
+        });
+        
+        // Broadcast via Batch Service
+        batchService.addUpdate(gameId, {
+            tileId: validTileId,
+            color: socket.userColor,
+            userId: socket.userId,
+            username: socket.username,
+            timestamp: Date.now()
         });
         
         // Get updated score

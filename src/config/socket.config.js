@@ -1,6 +1,6 @@
 module.exports = {
   cors: {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    origin: "*", // Allow all origins for tunnel support
     methods: ['GET', 'POST'],
     credentials: true
   },

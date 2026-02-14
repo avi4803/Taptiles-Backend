@@ -15,12 +15,19 @@ const authMiddleware = require('./src/socket/middleware/auth.middleware');
 const gameHandler = require('./src/socket/handlers/game.handler');
 const connectionHandler = require('./src/socket/handlers/connection.handler');
 
+const tileService = require('./src/services/tile.service');
+const tileHandler = require('./src/socket/handlers/tile.handler');
+
+
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server,socketConfig);
 
 io.use(authMiddleware);
+
+// Start Batch Processor
+require('./src/services/batch.service').startBatchProcessor(io);
 
 // connectDB();
 
@@ -30,9 +37,19 @@ redis.ping().then(()=>{
     console.log('Redis ping failed:',err.message);
 })
 
+tileService.loadLuaScripts().catch(err => {
+  console.error('Failed to load Lua scripts:', err);
+});
 
-app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+
+
+// Serve static files from the React app
+app.use(express.static(path.join(__dirname, '../my-project/dist')));
+
+// The "catchall" handler: for any request that doesn't
+// match one above, send back React's index.html file.
+app.get('*splat', (req, res) => {
+  res.sendFile(path.join(__dirname, '../my-project/dist/index.html'));
 });
 
 
@@ -44,7 +61,13 @@ io.on(EVENTS.CONNECTION,(socket)=>{
     socket.on('createGame', gameHandler.handleCreateGame(io, socket));
     socket.on(EVENTS.JOIN_GAME, gameHandler.handleJoinGame(io, socket));
     socket.on('startGame', gameHandler.handleStartGame(io, socket));
+    socket.on('getAvailableGames', gameHandler.handleGetAvailableGames(io, socket));
+    socket.on('leaveGame', gameHandler.handleLeaveGame(io, socket));
     socket.on('getLeaderboard', gameHandler.handleGetLeaderboard(io, socket));
+
+      // Tile events
+    socket.on(EVENTS.CLAIM_TILE, tileHandler.handleClaimTile(io, socket));
+    socket.on('getTiles', tileHandler.handleGetTiles(io, socket));
 
     
 

@@ -80,7 +80,7 @@ async function claimTile(gameId, tileId, user) {
     };
     
     // Add to batch update queue
-    gameService.addToBatchQueue(gameId, tileData);
+    // Batch update handled by handler/batchService logic directly
     
     return {
       success: true,

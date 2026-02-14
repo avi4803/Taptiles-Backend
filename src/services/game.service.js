@@ -10,13 +10,7 @@ const { v4: uuidv4 } = require('uuid');
 // In-memory storage for batch updates
 const updateQueues = new Map();
 
-/**
- * Create a new game
- * @param {number} duration - Game duration in ms
- * @param {object} gridSize - Grid dimensions
- * @returns {object} Game metadata
- */
-async function createGame(duration = GAME.DURATION, gridSize = GRID) {
+async function createGame(duration = GAME.DURATION, gridSize = GRID, maxPlayers = null, creatorId = null) {
   const gameId = uuidv4();
   
   const gameMeta = {
@@ -30,15 +24,20 @@ async function createGame(duration = GAME.DURATION, gridSize = GRID) {
       height: gridSize.HEIGHT
     },
     totalTiles: gridSize.TOTAL_TILES,
-    createdAt: Date.now()
+    createdAt: Date.now(),
+    maxPlayers,
+    creatorId
   };
   
-  // Store in Redis with 2 hour expiry
+  // Store in Redis with 3 minute expiry (auto-dispose if not started)
   await redis.setex(
     `game:${gameId}:meta`,
-    7200,
+    180, 
     JSON.stringify(gameMeta)
   );
+
+  // Add to waiting games list
+  await redis.sadd('games:waiting', gameId);
   
   console.log(`🎮 Game created: ${gameId}`);
   return gameMeta;
@@ -50,8 +49,6 @@ async function createGame(duration = GAME.DURATION, gridSize = GRID) {
  * @param {object} io - Socket.IO instance
  * @returns {object} Updated game metadata
  */
-
-
 async function startGame(gameId, io) {
   const meta = await getGameInfo(gameId);
   
@@ -68,15 +65,17 @@ async function startGame(gameId, io) {
   meta.startTime = now;
   meta.endTime = now + meta.duration;
   
-  // Update in Redis
+  // Update in Redis - Extend to 2 hours
   await redis.setex(
     `game:${gameId}:meta`,
     7200,
     JSON.stringify(meta)
   );
+
+  // Remove from waiting games
+  await redis.srem('games:waiting', gameId);
   
-  // Initialize batch update system
-  initBatchUpdateSystem(gameId, io);
+  // Batch update handled by batch.service.js global processor
   
   // Start countdown timer
   setTimeout(() => {
@@ -108,6 +107,9 @@ async function endGame(gameId, io) {
     7200,
     JSON.stringify(meta)
   );
+
+  // Ensure removed from waiting games
+  await redis.srem('games:waiting', gameId);
   
   // Stop batch updates
   const intervalId = updateQueues.get(`${gameId}:interval`);
@@ -191,6 +193,67 @@ async function getGameInfo(gameId) {
 }
 
 /**
+ * Add player to game
+ * @param {string} gameId - Game ID
+ * @param {object} player - Player object
+ */
+async function addPlayerToGame(gameId, player) {
+  await redis.hset(
+    `game:${gameId}:players`,
+    player.userId,
+    JSON.stringify(player)
+  );
+  // Set expiry to match game meta
+  await redis.expire(`game:${gameId}:players`, 7200);
+}
+
+/**
+ * Remove player from game
+ * @param {string} gameId - Game ID
+ * @param {string} userId - User ID
+ */
+async function removePlayerFromGame(gameId, userId) {
+  await redis.hdel(`game:${gameId}:players`, userId);
+}
+
+/**
+ * Get game players
+ * @param {string} gameId - Game ID
+ * @returns {Array} List of players
+ */
+async function getGamePlayers(gameId) {
+  const playersMap = await redis.hgetall(`game:${gameId}:players`);
+  if (!playersMap) return [];
+  
+  return Object.values(playersMap).map(p => JSON.parse(p));
+}
+
+/**
+ * Get all available (waiting) games
+ * @returns {Array} List of games with meta and players
+ */
+async function getAllWaitingGames() {
+  const gameIds = await redis.smembers('games:waiting');
+  const games = [];
+
+  for (const id of gameIds) {
+    const meta = await getGameInfo(id);
+    if (meta) {
+      const players = await getGamePlayers(id);
+      games.push({
+        ...meta,
+        players
+      });
+    } else {
+      // Clean up stale ID
+      await redis.srem('games:waiting', id);
+    }
+  }
+  
+  return games;
+}
+
+/**
  * Get remaining time
  * @param {string} gameId - Game ID
  * @returns {number} Remaining time in ms
@@ -254,14 +317,31 @@ async function getLeaderboard(gameId, limit = 10) {
   return leaderboard;
 }
 
+/**
+ * Delete a game completely
+ * @param {string} gameId - Game ID
+ */
+async function deleteGame(gameId) {
+  await redis.del(`game:${gameId}:meta`);
+  await redis.del(`game:${gameId}:players`);
+  await redis.srem('games:waiting', gameId);
+  // Also clear scores if any
+  await redis.del(`game:${gameId}:scores`);
+}
+
 module.exports = {
   createGame,
   startGame,
   endGame,
+  deleteGame,
   isGameActive,
   getGameInfo,
   getRemainingTime,
   getUserScore,
   getLeaderboard,
-  addToBatchQueue
+  addToBatchQueue,
+  addPlayerToGame,
+  removePlayerFromGame,
+  getGamePlayers,
+  getAllWaitingGames
 };
