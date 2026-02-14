@@ -44,13 +44,20 @@ tileService.loadLuaScripts().catch(err => {
 
 
 // Serve static files from the React app
-app.use(express.static(path.join(__dirname, '../my-project/dist')));
+const clientBuildPath = path.join(__dirname, '../my-project/dist');
+const fs = require('fs');
 
-// The "catchall" handler: for any request that doesn't
-// match one above, send back React's index.html file.
-app.get('*splat', (req, res) => {
-  res.sendFile(path.join(__dirname, '../my-project/dist/index.html'));
-});
+if (fs.existsSync(clientBuildPath)) {
+  app.use(express.static(clientBuildPath));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(clientBuildPath, 'index.html'));
+  });
+} else {
+  // API Mode: Return simple status for root, specific 404 for others to prevent retries
+  app.get('/', (req, res) => {
+    res.send('<h1>TapTile Backend is Running 🚀</h1><p>Frontend is hosted separately (Vercel).</p>');
+  });
+}
 
 
 io.on(EVENTS.CONNECTION,(socket)=>{
