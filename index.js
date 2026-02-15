@@ -49,7 +49,8 @@ const fs = require('fs');
 
 if (fs.existsSync(clientBuildPath)) {
   app.use(express.static(clientBuildPath));
-  app.get('*', (req, res) => {
+  // Use regex to match all routes for SPA fallback
+  app.get(/.*/, (req, res) => {
     res.sendFile(path.join(clientBuildPath, 'index.html'));
   });
 } else {
